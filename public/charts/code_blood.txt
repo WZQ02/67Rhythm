@@ -1,0 +1,26 @@
+id 10001
+title Code Blood (test)
+artist Xlient
+level easy
+music http://localhost:5173/mp3/code_blood.mp3
+cover http://localhost:5173/favicon.ico
+des 67test
+delay 0
+
+150bpm
+2 ,,,,
+4 6,,7,,6,,7,,
+4 6,,,,
+4 7,,,,
+4 6,,,,
+4 7,,,,
+4 6,,,,
+4 7,,,,
+4 6,,7,,6,,7,,
+4 6,7,6,7,6,7,6,7,
+4 6,7,6,7,6,7,6,7,
+8 6,7,6,7,6,7,6,7,
+8 6,7,6,7,6,7,6,7,
+4 6,,,,,,,7b,
+
+
