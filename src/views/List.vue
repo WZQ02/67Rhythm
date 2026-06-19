@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { isSimaiFormat } from '../utils/simaiParser'
+import SimaiConverter from '../components/SimaiConverter.vue'
 const { t } = useI18n()
 
 const router = useRouter()
@@ -10,6 +12,10 @@ const selectedChart = ref(null)
 const uploadMessage = ref('')
 const uploadInputRef = ref(null)
 let audioElement = null
+
+// simai 转换器状态
+const showSimaiConverter = ref(false)
+const simaiText = ref('')
 
 // 从谱面文本中解析元数据
 const parseChartMeta = (text) => {
@@ -74,8 +80,14 @@ const handleFileUpload = (event) => {
     
     // 验证谱面
     if (!validateChart(text, meta)) {
-      uploadMessage.value = t('list.invalidChart')
-      setTimeout(() => { uploadMessage.value = '' }, 2000)
+      // 检查是否为 simai 格式
+      if (isSimaiFormat(text)) {
+        simaiText.value = text
+        showSimaiConverter.value = true
+      } else {
+        uploadMessage.value = t('list.invalidChart')
+        setTimeout(() => { uploadMessage.value = '' }, 2000)
+      }
       return
     }
     
@@ -121,6 +133,37 @@ const triggerUpload = () => {
 const getHighScore = (chartId) => {
   const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
   return highScores[chartId] || null
+}
+
+// 导入转换后的 simai 谱面
+const importConvertedChart = (chartText) => {
+  const meta = parseChartMeta(chartText)
+  
+  // 获取当前自制谱数量，生成新 ID
+  const customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
+  const newId = 20000 + customCharts.length
+  
+  // 保存到 localStorage
+  const newChart = {
+    id: newId.toString(),
+    customText: chartText,
+    title: meta.title,
+    artist: meta.artist || 'Unknown',
+    level: meta.level,
+    chartist: meta.des || 'Unknown',
+    music: meta.music || '',
+    cover: meta.cover || '/covers/default.jpg',
+    isCustom: true
+  }
+  
+  customCharts.push(newChart)
+  localStorage.setItem('customCharts', JSON.stringify(customCharts))
+  
+  // 添加到列表
+  charts.value.push(newChart)
+  
+  uploadMessage.value = t('list.chartAdded')
+  setTimeout(() => { uploadMessage.value = '' }, 2000)
 }
 
 // 删除自制谱
@@ -322,6 +365,14 @@ const goHome = () => {
         {{ t('list.start') }}
       </button>
     </div>
+    
+    <!-- simai 转换器弹窗 -->
+    <SimaiConverter 
+      :show="showSimaiConverter"
+      :simaiText="simaiText"
+      @close="showSimaiConverter = false"
+      @import="importConvertedChart"
+    />
   </div>
 </template>
 
