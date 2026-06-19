@@ -24,7 +24,7 @@ const getGrade = (accuracy) => {
   if (accuracy >= 100) return 'SS'
   if (accuracy >= 97) return 'S+'
   if (accuracy >= 91) return 'S'
-  if (accuracy >= 80) return 'A'
+  if (accuracy >= 78) return 'A'
   if (accuracy >= 67) return 'B'
   if (accuracy >= 50) return 'C'
   return 'D'
@@ -47,6 +47,22 @@ onMounted(() => {
     late: parseInt(route.query.late) || 0
   }
   result.value.grade = getGrade(result.value.accuracy)
+  
+  // 保存最高记录到 localStorage
+  const chartId = route.query.chartId
+  if (chartId) {
+    const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
+    const currentScore = {
+      accuracy: result.value.accuracy,
+      grade: result.value.grade
+    }
+    
+    // 如果没有记录或当前分数更高，则更新
+    if (!highScores[chartId] || result.value.accuracy > highScores[chartId].accuracy) {
+      highScores[chartId] = currentScore
+      localStorage.setItem('highScores', JSON.stringify(highScores))
+    }
+  }
 })
 </script>
 

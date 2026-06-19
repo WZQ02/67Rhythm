@@ -117,6 +117,34 @@ const triggerUpload = () => {
   uploadInputRef.value?.click()
 }
 
+// 获取历史最高记录
+const getHighScore = (chartId) => {
+  const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
+  return highScores[chartId] || null
+}
+
+// 删除自制谱
+const deleteCustomChart = (chart) => {
+  if (!chart.isCustom) return
+  
+  // 从 localStorage 中删除
+  let customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
+  customCharts = customCharts.filter(c => c.id !== chart.id)
+  localStorage.setItem('customCharts', JSON.stringify(customCharts))
+  
+  // 从列表中移除
+  charts.value = charts.value.filter(c => c.id !== chart.id)
+  
+  // 如果删除的是当前选中的，清除选择
+  if (selectedChart.value?.id === chart.id) {
+    selectedChart.value = null
+    if (audioElement) {
+      audioElement.pause()
+      audioElement.currentTime = 0
+    }
+  }
+}
+
 onMounted(async () => {
   // 加载谱面列表
   const res = await fetch('/charts/list.json')
@@ -268,8 +296,20 @@ const goHome = () => {
           <div class="chart-meta">
             <span class="level">{{ chart.level }}</span>
             <span class="chartist">{{ t('list.chartedBy') }} {{ chart.chartist }}</span>
+            <span v-if="getHighScore(chart.id)" class="high-grade">{{ getHighScore(chart.id).grade }}</span>
           </div>
         </div>
+        <button 
+          v-if="chart.isCustom" 
+          class="delete-btn"
+          @click.stop="deleteCustomChart(chart)"
+          title="Delete"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
       </div>
     </div>
     
@@ -464,6 +504,7 @@ const goHome = () => {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .level {
@@ -478,6 +519,42 @@ const goHome = () => {
 .chartist {
   color: #666;
   font-size: 0.8rem;
+}
+
+.high-grade {
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  color: #000;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  background: #333;
+  border: none;
+  border-radius: 50%;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-btn:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.chart-item {
+  position: relative;
 }
 
 .footer {

@@ -13,11 +13,12 @@ const stats = ref({ great: 0, good: 0, miss: 0, fast: 0, late: 0 })
 const score = ref(0)
 const gameStarted = ref(false)
 const gameEnded = ref(false)
+const currentChartId = ref('')
 const leftHandActivated = ref(false)
 const rightHandActivated = ref(false)
 
 const FALL_DURATION = 1000 // 下落时长（毫秒），可调整
-const JUDGMENT_WINDOW = { great: 50, good: 100 }
+const JUDGMENT_WINDOW = { great: 50, good: 150 }
 
 let audioCtx = null
 let musicBuffer = null
@@ -244,6 +245,7 @@ const gameLoop = () => {
       router.push({ 
         path: '/result',
         query: {
+          chartId: currentChartId.value,
           title: chartInfo.value.title,
           artist: chartInfo.value.artist,
           level: chartInfo.value.level,
@@ -306,15 +308,30 @@ onMounted(async () => {
   try {
     // 从路由参数获取谱面ID，默认为 pandora
     const chartId = route.query.chart || 'pandora'
+    currentChartId.value = chartId
     
-    // 加载谱面列表获取谱面文件路径
-    const listRes = await fetch('/charts/list.json')
-    const chartList = await listRes.json()
-    const chartItem = chartList.find(c => c.id === chartId) || chartList[0]
+    let chartText = ''
     
-    // 加载谱面文件（包含所有元数据）
-    const chartRes = await fetch(chartItem.chart)
-    const chartText = await chartRes.text()
+    // 检查是否是自制谱（ID >= 20000）
+    if (parseInt(chartId) >= 20000) {
+      // 从 localStorage 加载自制谱
+      const customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
+      const customChart = customCharts.find(c => c.id === chartId)
+      if (customChart && customChart.customText) {
+        chartText = customChart.customText
+      } else {
+        throw new Error('Custom chart not found')
+      }
+    } else {
+      // 从 list.json 加载官方谱面
+      const listRes = await fetch('/charts/list.json')
+      const chartList = await listRes.json()
+      const chartItem = chartList.find(c => c.id === chartId) || chartList[0]
+      
+      const chartRes = await fetch(chartItem.chart)
+      chartText = await chartRes.text()
+    }
+    
     const parsed = parseChart(chartText)
     chartInfo.value = parsed.info
     notes.value = parsed.notes
