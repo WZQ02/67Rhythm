@@ -1,11 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const router = useRouter()
-const route = useRoute()
 
 const result = ref({
   title: '',
@@ -35,33 +34,52 @@ const goHome = () => {
 }
 
 onMounted(() => {
-  result.value = {
-    title: route.query.title || 'Unknown',
-    artist: route.query.artist || 'Unknown',
-    level: route.query.level || 'Unknown',
-    accuracy: parseFloat(route.query.accuracy) || 0,
-    great: parseInt(route.query.great) || 0,
-    good: parseInt(route.query.good) || 0,
-    miss: parseInt(route.query.miss) || 0,
-    fast: parseInt(route.query.fast) || 0,
-    late: parseInt(route.query.late) || 0
-  }
-  result.value.grade = getGrade(result.value.accuracy)
+  // 从 sessionStorage 读取游戏结果（更安全，无法通过 URL 篡改）
+  const gameResultStr = sessionStorage.getItem('gameResult')
   
-  // 保存最高记录到 localStorage
-  const chartId = route.query.chartId
-  if (chartId) {
-    const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
-    const currentScore = {
-      accuracy: result.value.accuracy,
-      grade: result.value.grade
-    }
+  if (!gameResultStr) {
+    // 没有有效的游戏结果，重定向到列表页
+    router.push('/list')
+    return
+  }
+  
+  // 读取后立即清除，防止重复使用
+  sessionStorage.removeItem('gameResult')
+  
+  try {
+    const gameResult = JSON.parse(gameResultStr)
     
-    // 如果没有记录或当前分数更高，则更新
-    if (!highScores[chartId] || result.value.accuracy > highScores[chartId].accuracy) {
-      highScores[chartId] = currentScore
-      localStorage.setItem('highScores', JSON.stringify(highScores))
+    result.value = {
+      title: gameResult.title || 'Unknown',
+      artist: gameResult.artist || 'Unknown',
+      level: gameResult.level || 'Unknown',
+      accuracy: parseFloat(gameResult.accuracy) || 0,
+      great: parseInt(gameResult.great) || 0,
+      good: parseInt(gameResult.good) || 0,
+      miss: parseInt(gameResult.miss) || 0,
+      fast: parseInt(gameResult.fast) || 0,
+      late: parseInt(gameResult.late) || 0
     }
+    result.value.grade = getGrade(result.value.accuracy)
+    
+    // 保存最高记录到 localStorage
+    const chartId = gameResult.chartId
+    if (chartId) {
+      const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
+      const currentScore = {
+        accuracy: result.value.accuracy,
+        grade: result.value.grade
+      }
+      
+      // 如果没有记录或当前分数更高，则更新
+      if (!highScores[chartId] || result.value.accuracy > highScores[chartId].accuracy) {
+        highScores[chartId] = currentScore
+        localStorage.setItem('highScores', JSON.stringify(highScores))
+      }
+    }
+  } catch (e) {
+    console.error('Invalid game result:', e)
+    router.push('/list')
   }
 })
 </script>

@@ -242,21 +242,22 @@ const gameLoop = () => {
     gameEnded.value = true
     setTimeout(() => {
       const accuracy = notes.value.length > 0 ? (score.value / notes.value.length) * 100 : 0
-      router.push({ 
-        path: '/result',
-        query: {
-          chartId: currentChartId.value,
-          title: chartInfo.value.title,
-          artist: chartInfo.value.artist,
-          level: chartInfo.value.level,
-          accuracy: accuracy.toFixed(2),
-          great: stats.value.great,
-          good: stats.value.good,
-          miss: stats.value.miss,
-          fast: stats.value.fast,
-          late: stats.value.late
-        }
-      })
+      
+      // 将游戏结果存入 sessionStorage（更安全，无法通过 URL 篡改）
+      sessionStorage.setItem('gameResult', JSON.stringify({
+        chartId: currentChartId.value,
+        title: chartInfo.value.title,
+        artist: chartInfo.value.artist,
+        level: chartInfo.value.level,
+        accuracy: accuracy.toFixed(2),
+        great: stats.value.great,
+        good: stats.value.good,
+        miss: stats.value.miss,
+        fast: stats.value.fast,
+        late: stats.value.late
+      }))
+      
+      router.push('/result')
     }, 1000)
     return
   }
