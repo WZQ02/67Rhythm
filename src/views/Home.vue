@@ -3,15 +3,19 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const goToPlay = () => {
-  router.push('/play')
+const goToList = () => {
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+  }
+  router.push('/list')
 }
+
 </script>
 
 <template>
   <div class="container">
     <h1 class="title">67Rhythm</h1>
-    <a class="start-link" @click.prevent="goToPlay">Start</a>
+    <a class="start-link" @click.prevent="goToList">Play</a>
   </div>
 </template>
 

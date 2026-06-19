@@ -13,7 +13,9 @@ const result = ref({
   grade: '',
   great: 0,
   good: 0,
-  miss: 0
+  miss: 0,
+  fast: 0,
+  late: 0
 })
 
 const getGrade = (accuracy) => {
@@ -38,7 +40,9 @@ onMounted(() => {
     accuracy: parseFloat(route.query.accuracy) || 0,
     great: parseInt(route.query.great) || 0,
     good: parseInt(route.query.good) || 0,
-    miss: parseInt(route.query.miss) || 0
+    miss: parseInt(route.query.miss) || 0,
+    fast: parseInt(route.query.fast) || 0,
+    late: parseInt(route.query.late) || 0
   }
   result.value.grade = getGrade(result.value.accuracy)
 })
@@ -70,6 +74,17 @@ onMounted(() => {
         <div class="stat-item miss">
           <span class="label">MISS</span>
           <span class="value">{{ result.miss }}</span>
+        </div>
+      </div>
+      
+      <div class="timing-stats">
+        <div class="stat-item fast">
+          <span class="label">FAST</span>
+          <span class="value">{{ result.fast }}</span>
+        </div>
+        <div class="stat-item late">
+          <span class="label">LATE</span>
+          <span class="value">{{ result.late }}</span>
         </div>
       </div>
 
@@ -177,6 +192,20 @@ onMounted(() => {
   font-size: 2rem;
   font-weight: bold;
 }
+
+.timing-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 30px;
+  padding-top: 15px;
+  border-top: 1px solid #444;
+}
+
+.stat-item.fast .label,
+.stat-item.fast .value { color: #4488ff; }
+
+.stat-item.late .label,
+.stat-item.late .value { color: #ff4444; }
 
 .replay-btn {
   width: 100%;

@@ -1,14 +1,15 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 
 const chartInfo = ref(null)
 const notes = ref([])
 const activeNotes = ref([])
 const judgmentTexts = ref([])
-const stats = ref({ great: 0, good: 0, miss: 0 })
+const stats = ref({ great: 0, good: 0, miss: 0, fast: 0, late: 0 })
 const score = ref(0)
 const gameStarted = ref(false)
 const gameEnded = ref(false)
@@ -79,14 +80,26 @@ const parseChart = (text) => {
 }
 
 const loadAudio = async (url) => {
-  const res = await fetch(url)
-  const arrayBuffer = await res.arrayBuffer()
-  return audioCtx.decodeAudioData(arrayBuffer)
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      throw new Error(`Failed to fetch audio: ${res.status}`)
+    }
+    const arrayBuffer = await res.arrayBuffer()
+    return new Promise((resolve, reject) => {
+      audioCtx.decodeAudioData(arrayBuffer, resolve, reject)
+    })
+  } catch (err) {
+    console.error('Audio load error:', err)
+    throw err
+  }
 }
 
 const playCountIn = (bpm, beatCount) => {
   return new Promise((resolve) => {
-    const interval = (60 / bpm) * 1000
+    // 拍子速度 = (bpm / 4) * 拍数
+    const countInBpm = (bpm / 4) * beatCount
+    const interval = (60 / countInBpm) * 1000
     
     for (let i = 0; i < beatCount; i++) {
       const source = audioCtx.createBufferSource()
@@ -116,9 +129,9 @@ const activateHand = (side) => {
   }
 }
 
-const showJudgment = (text, color) => {
+const showJudgment = (text, color, subText = '', subColor = '') => {
   const id = judgmentId++
-  judgmentTexts.value.push({ id, text, color })
+  judgmentTexts.value.push({ id, text, color, subText, subColor })
   setTimeout(() => {
     judgmentTexts.value = judgmentTexts.value.filter(j => j.id !== id)
   }, 200)
@@ -130,10 +143,8 @@ const judgeNote = (lane) => {
   if (!gameStarted.value || gameEnded.value) return
 
   const now = (audioCtx.currentTime - musicStartTime) * 1000 - parseFloat(chartInfo.value.delay)
-  console.log(`按键判定: ${lane}, 当前时间: ${now}`)
   
   const laneNotes = activeNotes.value.filter(n => n.lane === lane && !n.judged)
-  console.log(`当前轨道活跃音符: ${laneNotes.length}`)
   if (laneNotes.length === 0) return
 
   const closestNote = laneNotes.reduce((prev, curr) => {
@@ -141,18 +152,41 @@ const judgeNote = (lane) => {
   })
 
   const diff = Math.abs(closestNote.hitTime - now)
+  const timeDiff = now - closestNote.hitTime  // 正数表示打晚了，负数表示打早了
   
   if (diff <= JUDGMENT_WINDOW.great) {
     stats.value.great++
     score.value += 1
-    showJudgment('GREAT', '#ffd700')
+    // 判断是 FAST 还是 LATE（diff > 20ms 时）
+    if (diff > 20) {
+      if (timeDiff > 0) {
+        // 打晚了
+        stats.value.late++
+        showJudgment('GREAT', '#ffd700', 'LATE', '#ff4444')
+      } else {
+        // 打早了
+        stats.value.fast++
+        showJudgment('GREAT', '#ffd700', 'FAST', '#4488ff')
+      }
+    } else {
+      showJudgment('GREAT', '#ffd700')
+    }
     closestNote.judged = true
     document.getElementById(`note-${closestNote.id}`)?.remove()
     activeNotes.value = activeNotes.value.filter(n => n.id !== closestNote.id)
   } else if (diff <= JUDGMENT_WINDOW.good) {
     stats.value.good++
     score.value += 0.5
-    showJudgment('GOOD', '#00ff00')
+    // GOOD 判定总是显示 FAST/LATE
+    if (timeDiff > 0) {
+      // 打晚了
+      stats.value.late++
+      showJudgment('GOOD', '#00ff00', 'LATE', '#ff4444')
+    } else {
+      // 打早了
+      stats.value.fast++
+      showJudgment('GOOD', '#00ff00', 'FAST', '#4488ff')
+    }
     closestNote.judged = true
     document.getElementById(`note-${closestNote.id}`)?.remove()
     activeNotes.value = activeNotes.value.filter(n => n.id !== closestNote.id)
@@ -167,6 +201,7 @@ const spawnNote = (note) => {
   }
   const noteEl = document.createElement('div')
   noteEl.className = 'note'
+  noteEl.classList += ' '+note.lane
   noteEl.id = `note-${note.id}`
   noteEl.style.animationDuration = `${FALL_DURATION}ms`
   track.appendChild(noteEl)
@@ -214,7 +249,9 @@ const gameLoop = () => {
           accuracy: accuracy.toFixed(2),
           great: stats.value.great,
           good: stats.value.good,
-          miss: stats.value.miss
+          miss: stats.value.miss,
+          fast: stats.value.fast,
+          late: stats.value.late
         }
       })
     }, 1000)
@@ -234,6 +271,30 @@ const handleKeyDown = (e) => {
   }
 }
 
+let THRESHOLD = 7;
+let rotation_num = 0;
+
+const Handle67Motion = (event) => {
+  const now = Date.now();
+  const acc = event.acceleration;
+  if (!acc || acc.y === null || acc.z === null) return;
+  const cF = acc.y + acc.z;
+  if (cF > THRESHOLD) {
+      if (rotation_num != 6) {
+          rotation_num = 6
+          judgeNote('left')
+      }
+      lastTriggerTime = now;
+  } 
+  else if (cF < -THRESHOLD) {
+      if (rotation_num != 7) {
+          rotation_num = 7
+          judgeNote('right')
+      }
+      lastTriggerTime = now;
+  }
+}
+
 onMounted(async () => {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   // 确保AudioContext处于运行状态
@@ -242,22 +303,44 @@ onMounted(async () => {
   }
   
   try {
-    // 加载谱面
-    const chartRes = await fetch('/charts/code_blood.txt')
+    // 从路由参数获取谱面ID，默认为 pandora
+    const chartId = route.query.chart || 'pandora'
+    
+    // 加载谱面列表获取谱面文件路径
+    const listRes = await fetch('/charts/list.json')
+    const chartList = await listRes.json()
+    const chartItem = chartList.find(c => c.id === chartId) || chartList[0]
+    
+    // 加载谱面文件（包含所有元数据）
+    const chartRes = await fetch(chartItem.chart)
     const chartText = await chartRes.text()
     const parsed = parseChart(chartText)
     chartInfo.value = parsed.info
     notes.value = parsed.notes
     
-    console.log('谱面解析结果:', chartInfo.value)
-    console.log('音符数量:', notes.value.length)
-    if (notes.value.length > 0) {
-      console.log('前几个音符:', notes.value.slice(0, 5))
+    console.log('谱面信息:', chartInfo.value)
+    
+    // 获取音乐URL，处理相对路径
+    let musicUrl = chartInfo.value.music || ''
+    if (musicUrl && !musicUrl.startsWith('http')) {
+      // 如果是相对路径，添加正确的主机地址
+      musicUrl = window.location.origin + musicUrl
     }
+    console.log('音乐URL:', musicUrl)
 
-    // 加载音频
-    musicBuffer = await loadAudio(chartInfo.value.music)
-    clockBuffer = await loadAudio('/sfx/clock.mp3')
+    // 加载音频（使用 Web Audio API）
+    console.log('开始加载音乐...')
+    musicBuffer = await loadAudio(musicUrl).catch(err => {
+      console.error('音乐加载失败，尝试本地fallback:', err)
+      return loadAudio('/music/default.mp3')
+    })
+    console.log('音乐加载完成')
+    
+    console.log('开始加载节拍音效...')
+    clockBuffer = await loadAudio('/sfx/clock.mp3').catch(err => {
+      console.error('节拍音效加载失败:', err)
+    })
+    console.log('节拍音效加载完成')
 
     // 解析第一行bpm和拍数用于预拍
     const lines = chartText.trim().split('\n')
@@ -287,6 +370,7 @@ onMounted(async () => {
     gameLoopId = requestAnimationFrame(gameLoop)
 
     window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('devicemotion', Handle67Motion)
   } catch (err) {
     console.error('Error loading game:', err)
   }
@@ -297,6 +381,7 @@ onUnmounted(() => {
   if (musicSource) musicSource.stop()
   if (audioCtx) audioCtx.close()
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('devicemotion', Handle67Motion)
 })
 </script>
 
@@ -333,7 +418,10 @@ onUnmounted(() => {
         class="judgment-text"
         :style="{ color: judgment.color }"
       >
-        {{ judgment.text }}
+        <div class="judgment-main">{{ judgment.text }}</div>
+        <div v-if="judgment.subText" class="judgment-sub" :style="{ color: judgment.subColor }">
+          {{ judgment.subText }}
+        </div>
       </div>
     </div>
   </div>
@@ -400,13 +488,15 @@ onUnmounted(() => {
 
 .hand {
   position: absolute;
-  fill: white;
+  fill: rgb(255, 224, 72);
   height: 100%;
   width: 100%;
   bottom: 0px;
   max-width: 50vw;
-  opacity: .67;
-  transition: transform 0.2s ease-out;
+  opacity: 1;
+  stroke: black;
+  stroke-width: 3;
+  transition: transform 0.1s ease-in;
 }
 
 .hand.left {
@@ -436,6 +526,18 @@ onUnmounted(() => {
   font-size: 3rem;
   font-weight: bold;
   animation: judgmentFade 0.2s ease-out forwards;
+  text-align: center;
+}
+
+.judgment-main {
+  line-height: 1.2;
+}
+
+.judgment-sub {
+  font-size: 1.5rem;
+  font-weight: bold;
+  line-height: 1;
+  margin-top: 0.2rem;
 }
 
 @keyframes judgmentFade {
@@ -454,6 +556,28 @@ onUnmounted(() => {
   background-color: #fff;
   top: 0;
   animation: fall linear forwards;
+}
+
+.note::after {
+  color: #fff;
+  text-align: center;
+  font-size: 6.7vh;
+  font-weight: bold;
+  position: relative;
+  text-shadow:
+        -2px -2px 0 #000,  
+         2px -2px 0 #000,
+        -2px  2px 0 #000,
+         2px  2px 0 #000;
+  top: -7vh;
+  left: 3vh;
+}
+
+.note.left::after {
+  content: "6";
+}
+.note.right::after {
+  content: "7";
 }
 
 @keyframes fall {
