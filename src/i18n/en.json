@@ -1,0 +1,34 @@
+{
+  "home": {
+    "play": "Play"
+  },
+  "list": {
+    "title": "Select Chart",
+    "start": "Start!",
+    "chartAdded": "chart added!",
+    "invalidChart": "This txt is not a valid 67 chart!",
+    "chartedBy": "Charted by"
+  },
+  "settings": {
+    "title": "Settings",
+    "audioOffset": "Audio Timing Offset",
+    "audioOffsetHint": "Negative: earlier | Positive: later",
+    "gravitySensitivity": "Gravity Sensitivity",
+    "gravityHint": "Lower value = more sensitive",
+    "ok": "OK"
+  },
+  "tutorial": {
+    "title": "Tutorial",
+    "howToPlay": "How To Play",
+    "instructions": "Hold your phone on your right hand. When \"6\" reaches the line, lift your left hand up and move your right hand down; when \"7\" reaches the line, do the opposite, lift your right hand up and put your left hand down.",
+    "keyboardNote": "If you're using a PC, press \"6\" and \"7\" on your keyboard instead. (Keyboard play will be disabled in future versions, because that's not 67)",
+    "gotIt": "Got it!"
+  },
+  "result": {
+    "title": "Result",
+    "achievement": "Achievement",
+    "grade": "Grade",
+    "stats": "Stats",
+    "replay": "Replay"
+  }
+}

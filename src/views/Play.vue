@@ -26,6 +26,7 @@ let musicSource = null
 let gameLoopId = null
 let musicStartTime = 0
 let judgmentId = 0
+let audioOffset = 0 // 音押延迟（毫秒）
 
 const parseChart = (text) => {
   const lines = text.trim().split('\n')
@@ -356,15 +357,24 @@ onMounted(async () => {
     const firstBarLine = noteLines.find(l => !l.includes('bpm'))
     const firstBeatCount = parseInt(firstBarLine?.split(' ')[0]) || 4
 
+    // 加载音押延迟设置
+    const savedSettings = localStorage.getItem('gameSettings')
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings)
+      audioOffset = settings.audioOffset || 0
+    }
+
     // 播放预拍
     await playCountIn(firstBpm, firstBeatCount)
 
-    // 开始游戏
+    // 开始游戏，应用音押延迟
     musicSource = audioCtx.createBufferSource()
     musicSource.buffer = musicBuffer
     musicSource.connect(audioCtx.destination)
-    musicStartTime = audioCtx.currentTime
-    musicSource.start()
+    // audioOffset 负值提前，正值延后（转换为秒）
+    const offsetSeconds = audioOffset / 1000
+    musicStartTime = audioCtx.currentTime + offsetSeconds
+    musicSource.start(audioCtx.currentTime + offsetSeconds)
 
     gameStarted.value = true
     gameLoopId = requestAnimationFrame(gameLoop)

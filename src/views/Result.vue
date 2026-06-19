@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
@@ -29,7 +31,7 @@ const getGrade = (accuracy) => {
 }
 
 const goHome = () => {
-  router.push('/')
+  router.push('/list')
 }
 
 onMounted(() => {
@@ -88,7 +90,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <button class="replay-btn" @click="goHome">Replay</button>
+      <button class="replay-btn" @click="goHome">{{ t('result.replay') }}</button>
     </div>
   </div>
 </template>

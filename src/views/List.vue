@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const router = useRouter()
 const charts = ref([])
@@ -60,7 +62,7 @@ const handleFileUpload = (event) => {
   
   // 检查文件格式
   if (!file.name.endsWith('.txt')) {
-    uploadMessage.value = 'This txt is not a valid 67 chart!'
+    uploadMessage.value = t('list.invalidChart')
     setTimeout(() => { uploadMessage.value = '' }, 2000)
     return
   }
@@ -72,7 +74,7 @@ const handleFileUpload = (event) => {
     
     // 验证谱面
     if (!validateChart(text, meta)) {
-      uploadMessage.value = 'This txt is not a valid 67 chart!'
+      uploadMessage.value = t('list.invalidChart')
       setTimeout(() => { uploadMessage.value = '' }, 2000)
       return
     }
@@ -100,7 +102,7 @@ const handleFileUpload = (event) => {
     // 添加到列表
     charts.value.push(newChart)
     
-    uploadMessage.value = 'chart added!'
+    uploadMessage.value = t('list.chartAdded')
     setTimeout(() => { uploadMessage.value = '' }, 2000)
   }
   
@@ -175,7 +177,7 @@ const selectChart = (chart) => {
   if (audioElement) {
     audioElement.src = chart.music
     audioElement.play().catch(err => {
-      console.log('音频播放失败:', err)
+      console.log('Audio playback failed:', err)
     })
   }
 }
@@ -210,14 +212,29 @@ const goHome = () => {
   <div class="list-container">
     <div class="header">
       <button class="back-btn" @click="goHome">←</button>
-      <h1 class="title">Select Chart</h1>
-      <button class="upload-btn" @click="triggerUpload" title="添加谱面">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-      </button>
+      <h1 class="title">{{ t('list.title') }}</h1>
+      <div class="header-buttons">
+        <button class="settings-btn" @click="router.push('/settings')" title="设置">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <button class="tutorial-btn" @click="router.push('/tutorial')" title="教程">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
+        <button class="upload-btn" @click="triggerUpload" title="添加谱面">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
+      </div>
     </div>
     
     <!-- 隐藏的文件输入框 -->
@@ -250,7 +267,7 @@ const goHome = () => {
           <div class="chart-artist">{{ chart.artist }}</div>
           <div class="chart-meta">
             <span class="level">{{ chart.level }}</span>
-            <span class="chartist">Charted by {{ chart.chartist }}</span>
+            <span class="chartist">{{ t('list.chartedBy') }} {{ chart.chartist }}</span>
           </div>
         </div>
       </div>
@@ -262,7 +279,7 @@ const goHome = () => {
         :disabled="!selectedChart"
         @click="startGame"
       >
-        Start!
+        {{ t('list.start') }}
       </button>
     </div>
   </div>
@@ -325,6 +342,36 @@ const goHome = () => {
 .upload-btn:hover {
   background: #ffd700;
   color: #000;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.settings-btn,
+.tutorial-btn {
+  width: 40px;
+  height: 40px;
+  background: #222;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-btn:hover {
+  background: #4a9eff;
+  color: #fff;
+}
+
+.tutorial-btn:hover {
+  background: #ff9f4a;
+  color: #fff;
 }
 
 .upload-message {

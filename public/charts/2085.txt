@@ -2,11 +2,13 @@ id 10003
 title TECHNOPOLIS 2085
 artist PRASTIK DANCEFLOOR
 level basic
-music /tracks/technopolis_2085.mp3
+music /tracks/technopolis_2085.opus
 cover https://storage.moegirl.org.cn/moegirl/commons/7/71/CHUNIsong_TECHNOPOLIS_2085.png
 des wzq2067
-delay 220
+delay 0
 
+134bpm
+4 ,,,,
 67bpm
 16 6,7,6,
 32 7,6,,,6,,,7,,,,

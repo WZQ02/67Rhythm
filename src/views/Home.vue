@@ -1,5 +1,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const router = useRouter()
 
@@ -15,7 +17,7 @@ const goToList = () => {
 <template>
   <div class="container">
     <h1 class="title">67Rhythm</h1>
-    <a class="start-link" @click.prevent="goToList">Play</a>
+    <a class="start-link" @click.prevent="goToList">{{ t('home.play') }}</a>
   </div>
 </template>
 
