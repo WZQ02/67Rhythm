@@ -1,9 +1,15 @@
 <script setup>
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const router = useRouter()
+
+onMounted(() => {
+  // 标记已查看教程
+  localStorage.setItem('tutorialViewed', 'true')
+})
 
 const goBack = () => {
   router.push('/list')

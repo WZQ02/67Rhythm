@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { isSimaiFormat } from '../utils/simaiParser'
+import { saveAudio, deleteAudio, getAudio } from '../utils/db'
 import SimaiConverter from '../components/SimaiConverter.vue'
 const { t } = useI18n()
 
@@ -16,6 +17,16 @@ let audioElement = null
 // simai 转换器状态
 const showSimaiConverter = ref(false)
 const simaiText = ref('')
+
+// 音乐上传弹窗状态
+const showMusicUpload = ref(false)
+const pendingChartData = ref(null)
+const musicInputRef = ref(null)
+
+// simai 转换器音乐上传状态
+const pendingSimaiMusic = ref(null)
+const showSimaiMusicUpload = ref(false)
+const simaiMusicInputRef = ref(null)
 
 // 从谱面文本中解析元数据
 const parseChartMeta = (text) => {
@@ -33,8 +44,8 @@ const parseChartMeta = (text) => {
 
 // 验证谱面是否符合规范
 const validateChart = (text, meta) => {
-  // 必填项检查
-  if (!meta.id || !meta.title || !meta.level || !meta.music) {
+  // 必填项检查（music 改为可选，由用户后续上传）
+  if (!meta.id || !meta.title || !meta.level) {
     return false
   }
   
@@ -59,6 +70,116 @@ const validateChart = (text, meta) => {
   const hasNotes = /^\d+\s+[\d,\s]+$/m.test(chartContent)
   
   return hasBpm && hasNotes
+}
+
+// 更新谱面文本中的 music 字段
+const updateMusicInChartText = (text, musicValue) => {
+  const lines = text.trim().split('\n')
+  let inMetadata = true
+  let updatedLines = []
+  
+  for (const line of lines) {
+    if (inMetadata) {
+      console.log(line)
+      if (line.trim() === '') {
+        // 空行表示元数据结束
+        inMetadata = false
+        updatedLines.push(line)
+      } else if (line.trim().startsWith('music')) {
+        // 更新已有的 music 行
+        updatedLines.push(`music ${musicValue}`)
+      } else {
+        // 其他元数据行保持不变
+        updatedLines.push(line)
+      }
+    } else {
+      // 谱面内容保持不变
+      updatedLines.push(line)
+    }
+  }
+  
+  return updatedLines.join('\n')
+}
+
+// 保存谱面到 localStorage
+const saveChartToStorage = (text, meta, musicId = '') => {
+  const customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
+  const newId = 20000 + customCharts.length
+  
+  // 如果有音乐ID，更新谱面文本中的 music 字段
+  let chartText = text
+  if (musicId) {
+    chartText = updateMusicInChartText(text, musicId)
+  }
+  
+  const newChart = {
+    id: newId.toString(),
+    customText: chartText,
+    title: meta.title,
+    artist: meta.artist || 'Unknown',
+    level: meta.level,
+    chartist: meta.des || 'Unknown',
+    music: musicId || meta.music || '',
+    cover: meta.cover || '/covers/default.jpg',
+    isCustom: true
+  }
+  
+  customCharts.push(newChart)
+  localStorage.setItem('customCharts', JSON.stringify(customCharts))
+  
+  return newChart
+}
+
+// 处理音乐文件上传
+const handleMusicUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  if (!file.type.startsWith('audio/')) {
+    uploadMessage.value = '请上传音频文件'
+    setTimeout(() => { uploadMessage.value = '' }, 2000)
+    return
+  }
+  
+  try {
+    const musicId = `audio_${Date.now()}`
+    
+    // 保存到 IndexedDB
+    await saveAudio(musicId, file, file.name)
+    
+    // 如果有待导入的谱面数据
+    if (pendingChartData.value) {
+      const { text, meta } = pendingChartData.value
+      const newChart = saveChartToStorage(text, meta, musicId)
+      charts.value.push(newChart)
+      pendingChartData.value = null
+    } else if (pendingSimaiMusic.value) {
+      // 如果是 simai 转换后待上传音乐
+      importConvertedChart(pendingSimaiMusic.value.chartText, musicId)
+      pendingSimaiMusic.value = null
+    }
+    
+    showMusicUpload.value = false
+    showSimaiMusicUpload.value = false
+    uploadMessage.value = t('list.chartAdded')
+    setTimeout(() => { uploadMessage.value = '' }, 2000)
+  } catch (err) {
+    console.error('Failed to save audio:', err)
+    uploadMessage.value = '音频保存失败'
+    setTimeout(() => { uploadMessage.value = '' }, 2000)
+  }
+  
+  event.target.value = ''
+}
+
+// 触发音乐上传
+const triggerMusicUpload = () => {
+  musicInputRef.value?.click()
+}
+
+// 触发 simai 音乐上传
+const triggerSimaiMusicUpload = () => {
+  simaiMusicInputRef.value?.click()
 }
 
 // 处理文件上传
@@ -91,25 +212,16 @@ const handleFileUpload = (event) => {
       return
     }
     
-    // 获取当前自制谱数量，生成新 ID
-    const customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
-    const newId = 20000 + customCharts.length
-    
-    // 保存到 localStorage
-    const newChart = {
-      id: newId.toString(),
-      customText: text,
-      title: meta.title,
-      artist: meta.artist || 'Unknown',
-      level: meta.level,
-      chartist: meta.des || 'Unknown',
-      music: meta.music || '',
-      cover: meta.cover || '/covers/default.jpg',
-      isCustom: true
+    // 检查 music 项是否为空
+    if (!meta.music || meta.music.trim() === '') {
+      // 弹出音乐上传界面
+      pendingChartData.value = { text, meta }
+      showMusicUpload.value = true
+      return
     }
     
-    customCharts.push(newChart)
-    localStorage.setItem('customCharts', JSON.stringify(customCharts))
+    // 保存到 localStorage
+    const newChart = saveChartToStorage(text, meta)
     
     // 添加到列表
     charts.value.push(newChart)
@@ -136,8 +248,14 @@ const getHighScore = (chartId) => {
 }
 
 // 导入转换后的 simai 谱面
-const importConvertedChart = (chartText) => {
+const importConvertedChart = (chartText, musicId = '') => {
   const meta = parseChartMeta(chartText)
+  
+  // 如果有音乐ID，更新谱面文本中的 music 字段
+  let updatedChartText = chartText
+  if (musicId) {
+    updatedChartText = updateMusicInChartText(chartText, musicId)
+  }
   
   // 获取当前自制谱数量，生成新 ID
   const customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
@@ -146,12 +264,12 @@ const importConvertedChart = (chartText) => {
   // 保存到 localStorage
   const newChart = {
     id: newId.toString(),
-    customText: chartText,
+    customText: updatedChartText,
     title: meta.title,
     artist: meta.artist || 'Unknown',
     level: meta.level,
     chartist: meta.des || 'Unknown',
-    music: meta.music || '',
+    music: musicId || meta.music || '',
     cover: meta.cover || '/covers/default.jpg',
     isCustom: true
   }
@@ -166,9 +284,34 @@ const importConvertedChart = (chartText) => {
   setTimeout(() => { uploadMessage.value = '' }, 2000)
 }
 
+// 处理 simai 转换完成但需要上传音乐
+const handleSimaiConvertWithMusic = (chartText) => {
+  const meta = parseChartMeta(chartText)
+  
+  // 检查 music 项是否为空
+  if (!meta.music || meta.music.trim() === '') {
+    // 弹出音乐上传界面
+    pendingSimaiMusic.value = { chartText }
+    showSimaiMusicUpload.value = true
+    return
+  }
+  
+  // 直接导入
+  importConvertedChart(chartText)
+}
+
 // 删除自制谱
-const deleteCustomChart = (chart) => {
+const deleteCustomChart = async (chart) => {
   if (!chart.isCustom) return
+  
+  // 如果有本地音乐文件，删除 IndexedDB 中的数据
+  if (chart.music && chart.music.startsWith('audio_')) {
+    try {
+      await deleteAudio(chart.music)
+    } catch (err) {
+      console.error('Failed to delete audio from IndexedDB:', err)
+    }
+  }
   
   // 从 localStorage 中删除
   let customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
@@ -231,7 +374,7 @@ onUnmounted(() => {
   }
 })
 
-const selectChart = (chart) => {
+const selectChart = async (chart) => {
   // 如果选择的是同一个谱面，取消选择
   if (selectedChart.value && selectedChart.value.id === chart.id) {
     selectedChart.value = null
@@ -244,12 +387,24 @@ const selectChart = (chart) => {
   
   selectedChart.value = chart
   
-  // 播放预览音乐（不需要等待缓存）
+  // 播放预览音乐
   if (audioElement) {
-    audioElement.src = chart.music
-    audioElement.play().catch(err => {
+    try {
+      // 如果是本地音频ID，从 IndexedDB 读取
+      if (chart.music && chart.music.startsWith('audio_')) {
+        const blob = await getAudio(chart.music)
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          audioElement.src = url
+          audioElement.play()
+        }
+      } else {
+        audioElement.src = chart.music
+        audioElement.play()
+      }
+    } catch (err) {
       console.log('Audio playback failed:', err)
-    })
+    }
   }
 }
 
@@ -285,12 +440,6 @@ const goHome = () => {
       <button class="back-btn" @click="goHome">←</button>
       <h1 class="title">{{ t('list.title') }}</h1>
       <div class="header-buttons">
-        <button class="settings-btn" @click="router.push('/settings')" title="设置">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
         <button class="tutorial-btn" @click="router.push('/tutorial')" title="教程">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
@@ -303,6 +452,19 @@ const goHome = () => {
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
+        <button class="settings-btn" @click="router.push('/settings')" title="设置">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <button class="about-btn" @click="router.push('/about')" title="关于">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
           </svg>
         </button>
       </div>
@@ -371,7 +533,55 @@ const goHome = () => {
       :show="showSimaiConverter"
       :simaiText="simaiText"
       @close="showSimaiConverter = false"
-      @import="importConvertedChart"
+      @import="handleSimaiConvertWithMusic"
+    />
+    
+    <!-- 音乐上传弹窗（67谱面） -->
+    <div v-if="showMusicUpload" class="modal-overlay" @click.self="showMusicUpload = false">
+      <div class="modal-content music-modal">
+        <h2>谱面 music 项为空，请指定这个谱面的音乐文件：</h2>
+        <div class="upload-area" @click="triggerMusicUpload">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p>点击上传音频文件</p>
+        </div>
+        <button class="modal-cancel-btn" @click="showMusicUpload = false; pendingChartData = null">取消</button>
+      </div>
+    </div>
+    
+    <!-- simai 音乐上传弹窗 -->
+    <div v-if="showSimaiMusicUpload" class="modal-overlay" @click.self="showSimaiMusicUpload = false">
+      <div class="modal-content music-modal">
+        <h2>simai 谱面 music 项为空，请指定这个谱面的音乐文件：</h2>
+        <div class="upload-area" @click="triggerSimaiMusicUpload">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p>点击上传音频文件</p>
+        </div>
+        <button class="modal-cancel-btn" @click="showSimaiMusicUpload = false; pendingSimaiMusic = null">取消</button>
+      </div>
+    </div>
+    
+    <!-- 隐藏的音乐文件输入框 -->
+    <input 
+      ref="musicInputRef"
+      type="file" 
+      accept="audio/*" 
+      style="display: none" 
+      @change="handleMusicUpload"
+    />
+    <input 
+      ref="simaiMusicInputRef"
+      type="file" 
+      accept="audio/*" 
+      style="display: none" 
+      @change="handleMusicUpload"
     />
   </div>
 </template>
@@ -457,6 +667,25 @@ const goHome = () => {
 
 .settings-btn:hover {
   background: #4a9eff;
+  color: #fff;
+}
+
+.about-btn {
+  width: 40px;
+  height: 40px;
+  background: #222;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-btn:hover {
+  background: #9b59b6;
   color: #fff;
 }
 
@@ -634,5 +863,78 @@ const goHome = () => {
 .start-btn:not(:disabled):hover {
   transform: translateY(-2px);
   box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3);
+}
+
+/* 音乐上传弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-content {
+  background: #1a1a1a;
+  padding: 30px;
+  border-radius: 15px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.music-modal {
+  width: 400px;
+}
+
+.music-modal h2 {
+  color: #ffd700;
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.upload-area {
+  border: 2px dashed #444;
+  border-radius: 15px;
+  padding: 40px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  color: #666;
+}
+
+.upload-area:hover {
+  border-color: #ffd700;
+  background: rgba(255, 215, 0, 0.1);
+  color: #ffd700;
+}
+
+.upload-area p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.modal-cancel-btn {
+  margin-top: 20px;
+  padding: 12px 30px;
+  background: #333;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-cancel-btn:hover {
+  background: #444;
 }
 </style>

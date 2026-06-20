@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 
@@ -16,6 +18,7 @@ const gameEnded = ref(false)
 const currentChartId = ref('')
 const leftHandActivated = ref(false)
 const rightHandActivated = ref(false)
+const showTutorial = ref(false)
 
 const FALL_DURATION = 1000 // 下落时长（毫秒），可调整
 const JUDGMENT_WINDOW = { great: 50, good: 150 }
@@ -83,6 +86,20 @@ const parseChart = (text) => {
 
 const loadAudio = async (url) => {
   try {
+    // 如果是本地音频ID（以 audio_ 开头），从 IndexedDB 读取
+    if (url && url.startsWith('audio_')) {
+      const { getAudio, blobToArrayBuffer } = await import('../utils/db')
+      const blob = await getAudio(url)
+      if (!blob) {
+        throw new Error('Audio not found in IndexedDB')
+      }
+      const arrayBuffer = await blobToArrayBuffer(blob)
+      return new Promise((resolve, reject) => {
+        audioCtx.decodeAudioData(arrayBuffer, resolve, reject)
+      })
+    }
+    
+    // 否则从 URL 加载
     const res = await fetch(url)
     if (!res.ok) {
       throw new Error(`Failed to fetch audio: ${res.status}`)
@@ -240,6 +257,8 @@ const gameLoop = () => {
   // 检查游戏结束
   if (activeNotes.value.length === 0 && notes.value.every(n => n.spawned)) {
     gameEnded.value = true
+    // 标记已游玩过
+    localStorage.setItem('hasPlayed', 'true')
     setTimeout(() => {
       const accuracy = notes.value.length > 0 ? (score.value / notes.value.length) * 100 : 0
       
@@ -299,7 +318,8 @@ const Handle67Motion = (event) => {
   }
 }
 
-onMounted(async () => {
+// 开始游戏（加载谱面并启动）
+const startGame = async () => {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   // 确保AudioContext处于运行状态
   if (audioCtx.state === 'suspended') {
@@ -307,8 +327,8 @@ onMounted(async () => {
   }
   
   try {
-    // 从路由参数获取谱面ID，默认为 pandora
-    const chartId = route.query.chart || 'pandora'
+    // 从路由参数获取谱面ID，默认为 0
+    const chartId = route.query.chart || 0
     currentChartId.value = chartId
     
     let chartText = ''
@@ -341,7 +361,7 @@ onMounted(async () => {
     
     // 获取音乐URL，处理相对路径
     let musicUrl = chartInfo.value.music || ''
-    if (musicUrl && !musicUrl.startsWith('http')) {
+    if (musicUrl && !musicUrl.startsWith('http') && !musicUrl.startsWith('audio_')) {
       // 如果是相对路径，添加正确的主机地址
       musicUrl = window.location.origin + musicUrl
     }
@@ -402,6 +422,25 @@ onMounted(async () => {
   } catch (err) {
     console.error('Error loading game:', err)
   }
+}
+
+// 关闭教程并开始游戏
+const closeTutorialAndStart = () => {
+  localStorage.setItem('tutorialViewed', 'true')
+  showTutorial.value = false
+  startGame()
+}
+
+onMounted(async () => {
+  // 检查是否是第一次游玩且没有看过教程
+  const tutorialViewed = localStorage.getItem('tutorialViewed')
+  const hasPlayed = localStorage.getItem('hasPlayed')
+  
+  if (!tutorialViewed && !hasPlayed) {
+    showTutorial.value = true
+  } else {
+    startGame()
+  }
 })
 
 onUnmounted(() => {
@@ -450,6 +489,17 @@ onUnmounted(() => {
         <div v-if="judgment.subText" class="judgment-sub" :style="{ color: judgment.subColor }">
           {{ judgment.subText }}
         </div>
+      </div>
+    </div>
+
+    <!-- 教程弹窗 -->
+    <div v-if="showTutorial" class="tutorial-overlay">
+      <div class="tutorial-popup">
+        <img src="https://img.wzq02.top/upl/a69e281116efdddd4a958ddf8ac395b8.jpg" style="height: 20vh"/>
+        <h2 class="popup-title">{{ t('tutorial.howToPlay') }}</h2>
+        <div class="popup-text">{{ t('tutorial.instructions') }}</div>
+        <div class="popup-text">{{ t('tutorial.keyboardNote') }}</div>
+        <button class="popup-btn" @click="closeTutorialAndStart">{{ t('tutorial.gotIt') }}</button>
       </div>
     </div>
   </div>
@@ -571,6 +621,60 @@ onUnmounted(() => {
 @keyframes judgmentFade {
   0% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* 教程弹窗样式 */
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.tutorial-popup {
+  background: #1a1a1a;
+  padding: 30px;
+  border-radius: 15px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.popup-title {
+  color: #ffd700;
+  font-size: 1.8rem;
+  margin: 20px 0;
+}
+
+.popup-text {
+  color: #ccc;
+  font-size: 1.1rem;
+  line-height: 1.7;
+  margin-bottom: 15px;
+}
+
+.popup-btn {
+  margin-top: 20px;
+  padding: 15px 40px;
+  background: #ffd700;
+  border: none;
+  border-radius: 10px;
+  color: #000;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.popup-btn:hover {
+  background: #ffec8b;
 }
 </style>
 

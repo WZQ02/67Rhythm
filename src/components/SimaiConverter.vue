@@ -10,6 +10,7 @@ import {
   generate67Chart,
   preprocessSimaiText
 } from '../utils/simaiParser'
+import { saveAudio } from '../utils/db'
 
 const { t } = useI18n()
 
@@ -33,6 +34,12 @@ const convertOptions = ref({
 // 转换状态
 const converted = ref(false)
 const convertedChart = ref('')
+const pendingMusicId = ref('')
+
+// 音乐上传状态
+const showMusicUpload = ref(false)
+const musicInputRef = ref(null)
+const localAudioUploaded = ref(false) // 标记是否已上传本地音频
 
 // 解析元数据
 const metaData = computed(() => {
@@ -53,6 +60,38 @@ watch(difficulties, (newDiffs) => {
   }
 }, { immediate: true })
 
+// 触发音乐上传
+const triggerMusicUpload = () => {
+  musicInputRef.value?.click()
+}
+
+// 处理音乐上传
+const handleMusicUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  if (!file.type.startsWith('audio/')) {
+    alert('请上传音频文件')
+    return
+  }
+  
+  try {
+    const musicId = `audio_${Date.now()}`
+    await saveAudio(musicId, file, file.name)
+    
+    pendingMusicId.value = musicId
+    localAudioUploaded.value = true
+    
+    showMusicUpload.value = false
+    // 不自动开始转换，用户点击"开始转换"按钮后才会转换
+  } catch (err) {
+    console.error('Failed to save audio:', err)
+    alert('音频保存失败')
+  }
+  
+  event.target.value = ''
+}
+
 // 开始转换
 const startConvert = () => {
   if (!props.simaiText) return
@@ -69,12 +108,15 @@ const startConvert = () => {
   // 获取难度名称
   const diffName = difficulties.value.find(d => d.level === selectedDifficulty.value)?.name || 'Unknown'
   
+  // 确定音乐 URL（优先使用本地音频 ID）
+  const finalMusicUrl = pendingMusicId.value || musicUrl.value || ''
+  
   // 生成完整谱面
   convertedChart.value = generate67Chart(
     metaData.value,
     convertedContent,
     diffName,
-    musicUrl.value || '',
+    finalMusicUrl,
     coverUrl.value || ''
   )
   
@@ -98,7 +140,7 @@ const downloadChart = () => {
 
 // 导入谱面
 const importChart = () => {
-  emit('import', convertedChart.value)
+  emit('import', convertedChart.value, pendingMusicId.value)
   close()
 }
 
@@ -106,6 +148,9 @@ const importChart = () => {
 const close = () => {
   converted.value = false
   convertedChart.value = ''
+  pendingMusicId.value = ''
+  musicUrl.value = ''
+  localAudioUploaded.value = false
   emit('close')
 }
 </script>
@@ -117,14 +162,35 @@ const close = () => {
       
       <!-- 转换前表单 -->
       <div v-if="!converted" class="converter-form">
-        <!-- 音频 URL -->
+        <!-- 音频 URL 或上传 -->
         <div class="form-item">
-          <label>音频 URL 地址</label>
-          <input 
-            type="text" 
-            v-model="musicUrl" 
-            placeholder="https://example.com/music.mp3"
-          />
+          <label>音频文件</label>
+          <div class="music-input-row">
+            <template v-if="localAudioUploaded">
+              <div class="uploaded-indicator">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span>（已上传音频）</span>
+              </div>
+            </template>
+            <template v-else>
+              <input 
+                type="text" 
+                v-model="musicUrl" 
+                placeholder="https://example.com/music.mp3"
+                class="music-url-input"
+              />
+            </template>
+            <button class="upload-music-btn" @click="triggerMusicUpload" title="上传本地音频">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </button>
+          </div>
+          <span class="input-hint" v-if="!localAudioUploaded">输入 URL 或点击按钮上传本地音频</span>
         </div>
         
         <!-- 难度选择 -->
@@ -179,7 +245,6 @@ const close = () => {
         <button 
           class="convert-btn" 
           @click="startConvert"
-          :disabled="!musicUrl"
         >
           开始转换
         </button>
@@ -201,6 +266,15 @@ const close = () => {
       
       <!-- 关闭按钮 -->
       <button class="close-btn" @click="close">×</button>
+      
+      <!-- 隐藏的音乐文件输入框 -->
+      <input 
+        ref="musicInputRef"
+        type="file" 
+        accept="audio/*" 
+        style="display: none" 
+        @change="handleMusicUpload"
+      />
     </div>
   </div>
 </template>
@@ -399,5 +473,63 @@ const close = () => {
 
 .close-btn:hover {
   background: #ff4444;
+}
+
+.music-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.music-url-input {
+  flex: 1;
+  padding: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.music-url-input:focus {
+  outline: none;
+  border-color: #ffd700;
+}
+
+.uploaded-indicator {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #2a4a2a;
+  border: 1px solid #4a8a4a;
+  border-radius: 8px;
+  color: #4ade80;
+  font-size: 1rem;
+}
+
+.upload-music-btn {
+  width: 44px;
+  height: 44px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #ffd700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.upload-music-btn:hover {
+  background: #ffd700;
+  color: #000;
+  border-color: #ffd700;
+}
+
+.input-hint {
+  color: #666;
+  font-size: 0.8rem;
 }
 </style>

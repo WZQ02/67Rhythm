@@ -30,5 +30,10 @@
     "grade": "Grade",
     "stats": "Stats",
     "replay": "Replay"
+  },
+  "about": {
+    "title": "About",
+    "text": "The most 67🫳🫴 rhythm game ever.",
+    "checksrc": "source code"
   }
 }
