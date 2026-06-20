@@ -12,8 +12,16 @@
     "chart": "/charts/pandora_full.txt"
   },
   {
-    "id": "10003",
-    "chart": "/charts/2085.txt"
+    "id": "10006",
+    "chart": "/charts/2085_full.txt"
+  },
+  {
+    "id": "11006",
+    "chart": "/charts/usm_expert.txt"
+  },
+  {
+    "id": "11003",
+    "chart": "/charts/credits_expert.txt"
   },
   {
     "id": "11001",

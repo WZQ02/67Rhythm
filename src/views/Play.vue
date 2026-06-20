@@ -178,7 +178,7 @@ const judgeNote = (lane) => {
     activeNotes.value = activeNotes.value.filter(n => n.id !== closestNote.id)
   } else if (diff <= JUDGMENT_WINDOW.good) {
     stats.value.good++
-    score.value += 0.5
+    score.value += 0.67 // GOOD 改为 0.67 分
     // GOOD 判定总是显示 FAST/LATE
     if (timeDiff > 0) {
       // 打晚了

@@ -1,7 +1,7 @@
 id 11001
 title PANDORA PARADOXXX
 artist 削除
-level hard
+level Re:MASTER
 music /tracks/pandora_paradoxxx.mp3
 cover https://p1.music.126.net/5Jb-rFzn657TIm1jzojk5A==/109951165098711210.jpg
 des PANDORA PARADOXXX

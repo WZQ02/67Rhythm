@@ -1,7 +1,7 @@
 id 11002
 title 系ぎて
 artist Rintaro Soma
-level hard
+level Re:MASTER
 music /tracks/tsunagite.mp3
 cover https://silentblue.remywiki.com/images/f/ff/Tsunagite.png
 des BEYOND THE MEMORIES
