@@ -55,7 +55,7 @@ const validateChart = (text, meta) => {
   }
   
   // 检查是否有 BPM 标记和音符分布
-  const hasBpm = /^\d+bpm$/mi.test(chartContent)
+  const hasBpm = /^\d+(?:\.\d+)?bpm$/mi.test(chartContent)
   const hasNotes = /^\d+\s+[\d,\s]+$/m.test(chartContent)
   
   return hasBpm && hasNotes

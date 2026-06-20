@@ -8,11 +8,19 @@
     "chart": "/charts/code_blood.txt"
   },
   {
-    "id": "10002",
-    "chart": "/charts/pandora.txt"
+    "id": "10005",
+    "chart": "/charts/pandora_full.txt"
   },
   {
     "id": "10003",
     "chart": "/charts/2085.txt"
+  },
+  {
+    "id": "11001",
+    "chart": "/charts/pandora_hard.txt"
+  },
+  {
+    "id": "11002",
+    "chart": "/charts/tsunagite_hard.txt"
   }
 ]

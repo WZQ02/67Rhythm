@@ -1,5 +1,5 @@
 id 10002
-title PANDORA PARADOXXX
+title PANDORA PARADOXXX (short)
 artist 削除
 level basic
 music /tracks/pandora_paradoxxx.mp3
