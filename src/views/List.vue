@@ -313,7 +313,12 @@ const deleteCustomChart = async (chart) => {
     }
   }
   
-  // 从 localStorage 中删除
+  // 删除对应的游玩成绩记录
+  const highScores = JSON.parse(localStorage.getItem('highScores') || '{}')
+  delete highScores[chart.id]
+  localStorage.setItem('highScores', JSON.stringify(highScores))
+  
+  // 从 localStorage 中删除谱面
   let customCharts = JSON.parse(localStorage.getItem('customCharts') || '[]')
   customCharts = customCharts.filter(c => c.id !== chart.id)
   localStorage.setItem('customCharts', JSON.stringify(customCharts))
