@@ -12,7 +12,7 @@ const loadSettings = () => {
   if (saved) {
     return JSON.parse(saved)
   }
-  return { audioOffset: 0, gravitySensitivity: 7 }
+  return { audioOffset: 0, gravitySensitivity: 7, playCorrectSound: false }
 }
 
 const settings = ref(loadSettings())
@@ -83,6 +83,22 @@ const goBack = () => {
           </div>
         </div>
         <div class="setting-hint">{{ t('settings.gravityHint') }}</div>
+      </div>
+      
+      <!-- 播放正解音效 -->
+      <div class="setting-item checkbox-item">
+        <div class="checkbox-label">
+          <span class="label-text">播放正解音</span>
+          <label class="checkbox-wrapper">
+            <input 
+              type="checkbox" 
+              v-model="settings.playCorrectSound"
+              class="checkbox"
+            />
+            <span class="checkbox-checkmark"></span>
+          </label>
+        </div>
+        <div class="setting-hint">勾选后，音符到达判定线时会播放对应音效</div>
       </div>
     </div>
     
@@ -213,6 +229,65 @@ const goBack = () => {
   font-size: 0.85rem;
   margin-top: 10px;
   text-align: center;
+}
+
+.checkbox-item {
+  padding: 15px 20px;
+}
+
+.checkbox-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.checkbox-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.checkbox-wrapper .checkbox {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.checkbox-checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #333;
+  border-radius: 15px;
+  transition: background-color 0.3s ease;
+}
+
+.checkbox-checkmark::before {
+  position: absolute;
+  content: '';
+  height: 22px;
+  width: 22px;
+  left: 4px;
+  bottom: 4px;
+  background-color: #666;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.checkbox:checked + .checkbox-checkmark {
+  background: linear-gradient(135deg, #ffd700 0%, #ffb700 100%);
+}
+
+.checkbox:checked + .checkbox-checkmark::before {
+  transform: translateX(20px);
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .footer {

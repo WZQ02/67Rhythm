@@ -26,11 +26,14 @@ const JUDGMENT_WINDOW = { great: 50, good: 150 }
 let audioCtx = null
 let musicBuffer = null
 let clockBuffer = null
+let note6Buffer = null
+let note7Buffer = null
 let musicSource = null
 let gameLoopId = null
 let musicStartTime = 0
 let judgmentId = 0
 let audioOffset = 0 // 音押延迟（毫秒）
+let playCorrectSound = false // 是否播放正解音效
 
 const parseChart = (text) => {
   const lines = text.trim().split('\n')
@@ -193,6 +196,8 @@ const judgeNote = (lane) => {
     closestNote.judged = true
     document.getElementById(`note-${closestNote.id}`)?.remove()
     activeNotes.value = activeNotes.value.filter(n => n.id !== closestNote.id)
+    // 当打出 GREAT 判定时，振动 50ms
+    navigator.vibrate(50)
   } else if (diff <= JUDGMENT_WINDOW.good) {
     stats.value.good++
     score.value += 0.67 // GOOD 改为 0.67 分
@@ -209,6 +214,24 @@ const judgeNote = (lane) => {
     closestNote.judged = true
     document.getElementById(`note-${closestNote.id}`)?.remove()
     activeNotes.value = activeNotes.value.filter(n => n.id !== closestNote.id)
+    // 当打出 GOOD 判定时，振动 20ms
+    navigator.vibrate(20)
+  }
+}
+
+const playNoteSound = (lane) => {
+  if (!playCorrectSound || !audioCtx) return
+  
+  const buffer = lane === 'left' ? note6Buffer : note7Buffer
+  if (!buffer) return
+  
+  try {
+    const source = audioCtx.createBufferSource()
+    source.buffer = buffer
+    source.connect(audioCtx.destination)
+    source.start()
+  } catch (err) {
+    console.error('播放正解音效失败:', err)
   }
 }
 
@@ -243,6 +266,14 @@ const gameLoop = () => {
     }
   }
 
+  // 播放正解音效（音符到达判定线时）
+  for (const note of activeNotes.value) {
+    if (!note.soundPlayed && !note.judged && Math.abs(now - note.hitTime) <= 10) {
+      note.soundPlayed = true
+      playNoteSound(note.lane)
+    }
+  }
+  
   // 检查miss
   for (const note of activeNotes.value) {
     if (!note.judged && now > note.hitTime + JUDGMENT_WINDOW.good) {
@@ -380,6 +411,24 @@ const startGame = async () => {
       console.error('节拍音效加载失败:', err)
     })
     console.log('节拍音效加载完成')
+    
+    // 加载正解音效（如果启用）
+    const savedSettings = localStorage.getItem('gameSettings')
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings)
+      playCorrectSound = settings.playCorrectSound || false
+    }
+    
+    if (playCorrectSound) {
+      console.log('开始加载正解音效...')
+      note6Buffer = await loadAudio('/sfx/note_6.mp3').catch(err => {
+        console.error('note_6音效加载失败:', err)
+      })
+      note7Buffer = await loadAudio('/sfx/note_7.mp3').catch(err => {
+        console.error('note_7音效加载失败:', err)
+      })
+      console.log('正解音效加载完成')
+    }
 
     // 解析第一行bpm和拍数用于预拍
     const lines = chartText.trim().split('\n')
@@ -396,7 +445,6 @@ const startGame = async () => {
     const firstBeatCount = parseInt(firstBarLine?.split(' ')[0]) || 4
 
     // 加载音押延迟设置
-    const savedSettings = localStorage.getItem('gameSettings')
     if (savedSettings) {
       const settings = JSON.parse(savedSettings)
       audioOffset = settings.audioOffset || 0
